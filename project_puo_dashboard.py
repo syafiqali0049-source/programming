@@ -1,18 +1,12 @@
 import streamlit as st
 import pandas as pd
-import folium
-from streamlit_folium import st_folium
-from pyproj import Transformer
+import plotly.graph_objects as go
 
-st.title("Polygon Visualization with Google Satellite")
+st.title("Interactive Polygon (Easting & Northing)")
 
-uploaded_file = st.file_uploader(
-    "Upload CSV file (must contain STN, E, N columns)",
-    type=["csv"]
-)
+uploaded_file = st.file_uploader("Upload CSV (STN, E, N)", type=["csv"])
 
 if uploaded_file is not None:
-
     df = pd.read_csv(uploaded_file)
 
     if all(col in df.columns for col in ['STN','E','N']):
@@ -20,51 +14,42 @@ if uploaded_file is not None:
         st.subheader("Data Preview")
         st.write(df)
 
-        # Convert UTM to Lat/Lon (example: UTM Zone 47N)
-        transformer = Transformer.from_crs("epsg:32647","epsg:4326",always_xy=True)
+        # Close polygon
+        df_poly = pd.concat([df, df.iloc[[0]]])
 
-        lat = []
-        lon = []
+        fig = go.Figure()
 
-        for e,n in zip(df['E'],df['N']):
-            lo,la = transformer.transform(e,n)
-            lat.append(la)
-            lon.append(lo)
+        # Polygon line
+        fig.add_trace(go.Scatter(
+            x=df_poly['E'],
+            y=df_poly['N'],
+            mode='lines+markers',
+            name='Polygon',
+            line=dict(color='blue'),
+            marker=dict(size=8)
+        ))
 
-        df['Lat'] = lat
-        df['Lon'] = lon
+        # Add station labels
+        for i, txt in enumerate(df['STN']):
+            fig.add_annotation(
+                x=df['E'][i],
+                y=df['N'][i],
+                text=txt,
+                showarrow=True,
+                arrowhead=1
+            )
 
-        center_lat = df['Lat'].mean()
-        center_lon = df['Lon'].mean()
-
-        m = folium.Map(
-            location=[center_lat,center_lon],
-            zoom_start=18,
-            tiles=None
+        fig.update_layout(
+            xaxis_title='Easting (m)',
+            yaxis_title='Northing (m)',
+            title='Interactive Polygon Plot',
+            yaxis=dict(scaleanchor="x", scaleratio=1),  # keep aspect ratio 1:1
+            width=700,
+            height=500
         )
 
-        folium.TileLayer(
-            tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-            attr='Google Satellite'
-        ).add_to(m)
-
-        coords = list(zip(df['Lat'],df['Lon']))
-        coords.append(coords[0])
-
-        folium.Polygon(
-            locations=coords,
-            color='blue',
-            fill=True,
-            fill_opacity=0.4
-        ).add_to(m)
-
-        for i in range(len(df)):
-            folium.Marker(
-                [df['Lat'][i],df['Lon'][i]],
-                popup=df['STN'][i]
-            ).add_to(m)
-
-        st_folium(m,width=700,height=500)
+        st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.error("CSV must contain STN, E, N columns")
+
