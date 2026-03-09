@@ -1,45 +1,69 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import folium
+from streamlit_folium import st_folium
 
-st.title("Polygon Visualization from CSV")
+st.title("Polygon Visualization with Google Satellite")
 
-# File uploader
-uploaded_file = st.file_uploader("Upload your CSV file (must contain STN, E, and N columns)", type=["csv"])
+uploaded_file = st.file_uploader(
+    "Upload CSV file (must contain STN, Lat, Lon columns)", 
+    type=["csv"]
+)
 
 if uploaded_file is not None:
-    # Read CSV
+
     df = pd.read_csv(uploaded_file)
-    
-    # Check if necessary columns exist
-    if all(col in df.columns for col in ['STN', 'E', 'N']):
+
+    if all(col in df.columns for col in ['STN', 'Lat', 'Lon']):
+
         st.subheader("Data Preview")
         st.write(df)
 
-        # Close the polygon by appending the first point to the end
-        df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
+        # Create map center
+        center_lat = df['Lat'].mean()
+        center_lon = df['Lon'].mean()
 
-        # Plotting
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.plot(df_poly['E'], df_poly['N'], marker='o', linestyle='-', color='b')
-        
-        # Label each station
-        for i, txt in enumerate(df['STN']):
-            ax.annotate(txt, (df['E'].iloc[i], df['N'].iloc[i]), 
-                        textcoords="offset points", xytext=(0,10), ha='center')
+        # Create folium map with Google Satellite
+        m = folium.Map(
+            location=[center_lat, center_lon],
+            zoom_start=18,
+            tiles=None
+        )
 
-        ax.set_xlabel('Easting (E)')
-        ax.set_ylabel('Northing (N)')
-        ax.set_title('Polygon Plot')
-        ax.grid(True)
-        ax.set_aspect('equal', adjustable='box')
+        folium.TileLayer(
+            tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+            attr='Google',
+            name='Google Satellite',
+            overlay=False,
+            control=True
+        ).add_to(m)
 
-        # Show plot in Streamlit
-        st.pyplot(fig)
-        
-        # Optional: Calculate Perimeter
-        # You could also add Shoelace formula for Area here
+        # Create polygon coordinates
+        coords = list(zip(df['Lat'], df['Lon']))
+
+        # Close polygon
+        coords.append(coords[0])
+
+        # Add polygon
+        folium.Polygon(
+            locations=coords,
+            color='blue',
+            fill=True,
+            fill_opacity=0.3
+        ).add_to(m)
+
+        # Add station markers
+        for i in range(len(df)):
+            folium.Marker(
+                location=[df['Lat'][i], df['Lon'][i]],
+                popup=df['STN'][i]
+            ).add_to(m)
+
+        # Show map in Streamlit
+        st_folium(m, width=700, height=500)
+
     else:
-        st.error("CSV must contain columns named 'STN', 'E', and 'N'.")
+        st.error("CSV must contain STN, Lat, and Lon columns")
+
 else:
-    st.info("Please upload a CSV file to see the polygon.")
+    st.info("Upload CSV file to visualize polygon")
