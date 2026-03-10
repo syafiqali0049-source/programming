@@ -8,15 +8,22 @@ import math
 import io
 
 st.set_page_config(page_title="GIS Polygon Dashboard", layout="wide")
-st.title("GIS Polygon Dashboard (Johor Grid → Google Satellite)")
 
-# ====== SIDEBAR CONTROLS (Indication / Settings) ======
+# ====== SIDEBAR (Logo & Indication) ======
+# Saya tambah logo di sini. Pastikan file "logo poli.jpeg" ada dalam folder yang sama dengan script ini.
+try:
+    st.sidebar.image("logo poli.jpeg", use_container_width=True)
+except:
+    st.sidebar.warning("Logo 'logo poli.jpeg' tidak dijumpai. Pastikan nama file betul.")
+
 st.sidebar.header("Tetapan Paparan (Indication)")
 stn_font_size = st.sidebar.slider("Saiz Font Station (STN)", 8, 20, 10)
 dms_font_size = st.sidebar.slider("Saiz Font Bearing/Jarak (DMS)", 6, 16, 8)
 marker_size = st.sidebar.slider("Saiz Marker Station", 2, 12, 4)
 stn_color = st.sidebar.color_picker("Warna Font Station", "#FFFFFF")
 dms_color = st.sidebar.color_picker("Warna Font DMS", "#00FF00")
+
+st.title("GIS Polygon Dashboard (Johor Grid → Google Satellite)")
 
 # ====== Function: Decimal Degree → DMS ======
 def deg_to_dms(deg):
@@ -100,7 +107,7 @@ if uploaded_file is not None:
             fill_opacity=0.2
         ).add_to(polygon_layer)
 
-        # ====== Stations (Guna Slider & Color Picker) ======
+        # ====== Stations (Guna Sidebar Settings) ======
         for _, row in df.iterrows():
             folium.CircleMarker(
                 location=[row["Lat"], row["Lon"]],
@@ -112,7 +119,7 @@ if uploaded_file is not None:
                 fill_opacity=1
             ).add_to(station_layer)
 
-            # Label STN - Clean version with Dynamic Font
+            # Label STN - Clean version with Dynamic Font & Shadow
             folium.map.Marker(
                 [row["Lat"], row["Lon"]],
                 icon=folium.DivIcon(
@@ -131,7 +138,7 @@ if uploaded_file is not None:
                 )
             ).add_to(station_layer)
 
-        # ====== Bearing & Distance Labels (Guna Slider & Color Picker) ======
+        # ====== Bearing & Distance Labels (Guna Sidebar Settings) ======
         for i in range(len(df_poly)-1):
             mid_lat = (df_poly["Lat"][i] + df_poly["Lat"][i+1]) / 2
             mid_lon = (df_poly["Lon"][i] + df_poly["Lon"][i+1]) / 2
