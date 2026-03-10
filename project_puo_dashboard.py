@@ -40,6 +40,19 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ====== 2. DASHBOARD UTAMA ======
+
+# --- HEADER DENGAN LOGO DI BELAH KIRI ---
+head_col1, head_col2 = st.columns([1, 5])
+with head_col1:
+    try:
+        st.image("logo poli.jpeg", width=150) # Logo di belah kiri tajuk
+    except:
+        pass
+with head_col2:
+    st.markdown("<br>", unsafe_allow_html=True) # Adjust alignment
+    st.title("GIS Polygon Dashboard (Johor Grid → Google Satellite)")
+
+# --- SIDEBAR (Tetap kekal logo di sidebar juga) ---
 try:
     st.sidebar.image("logo poli.jpeg", use_container_width=True)
 except:
@@ -56,8 +69,6 @@ st.sidebar.markdown("---")
 if st.sidebar.button("Log Keluar"):
     logout()
 
-st.title("GIS Polygon Dashboard (Johor Grid → Google Satellite)")
-
 def deg_to_dms(deg):
     d = int(deg)
     m_float = (deg - d) * 60
@@ -70,7 +81,6 @@ uploaded_file = st.file_uploader("Upload CSV (STN, E, N)", type=["csv"])
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     if all(col in df.columns for col in ['STN','E','N']):
-        # Convert Johor Grid → WGS84
         transformer = Transformer.from_crs("epsg:4390","epsg:4326", always_xy=True)
         df["Lon"], df["Lat"] = zip(*[transformer.transform(e, n) for e, n in zip(df["E"], df["N"])])
 
@@ -87,12 +97,10 @@ if uploaded_file is not None:
         area = polygon_geom.area
         perimeter = sum(distances)
 
-        # Info Ringkas di Streamlit UI
         c1, c2 = st.columns(2)
         c1.metric("Polygon Area", f"{area:,.2f} m²")
         c2.metric("Polygon Perimeter", f"{perimeter:,.2f} m")
 
-        # Create Map
         m = folium.Map(location=[df["Lat"].mean(), df["Lon"].mean()], zoom_start=20, control_scale=True)
         folium.TileLayer("OpenStreetMap", name="Street Map").add_to(m)
         folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", attr="Google", name="Google Satellite", max_zoom=22).add_to(m)
@@ -101,7 +109,6 @@ if uploaded_file is not None:
         station_layer = folium.FeatureGroup(name="Stations").add_to(m)
         dimension_layer = folium.FeatureGroup(name="Traverse Dimensions").add_to(m)
 
-        # ====== POLYGON DENGAN INFO CLIK ======
         polygon_coords = list(zip(df["Lat"], df["Lon"]))
         folium.Polygon(
             locations=polygon_coords,
@@ -109,51 +116,24 @@ if uploaded_file is not None:
             popup=folium.Popup(f"<b>INFO LOT</b><br>Keluasan: {area:,.2f} m²<br>Perimeter: {perimeter:,.2f} m", max_width=200)
         ).add_to(polygon_layer)
 
-        # ====== BARU: AREA LABEL DI TENGAH POLIGON ======
-        # Mencari titik tengah (Centroid) untuk letak teks AREA
+        # AREA LABEL (GOLD)
         centroid = polygon_geom.centroid
         cen_lon, cen_lat = transformer.transform(centroid.x, centroid.y)
-        
         folium.Marker(
             location=[cen_lat, cen_lon],
             icon=folium.DivIcon(
-                html=f"""
-                <div style="
-                font-size: 14pt;
-                font-weight: bold;
-                color: #FFD700;
-                text-shadow: 2px 2px 4px black;
-                text-align: center;
-                pointer-events: none;
-                width: 200px;
-                margin-left: -100px;">
-                AREA<br>{area:,.2f} m²
-                </div>
-                """
+                html=f"""<div style="font-size: 14pt; font-weight: bold; color: #FFD700; text-shadow: 2px 2px 4px black; text-align: center; pointer-events: none; width: 200px; margin-left: -100px;">AREA<br>{area:,.2f} m²</div>"""
             )
         ).add_to(dimension_layer)
 
-        # ====== STATIONS DENGAN INFO COORDINATE ======
+        # STATIONS
         for _, row in df.iterrows():
-            popup_html = f"""
-            <div style='font-family: Arial; font-size: 10pt;'>
-                <b>Station: {row['STN']}</b><br>
-                <hr>
-                <b>Johor Grid (E, N):</b><br>
-                E: {row['E']:.3f}<br>
-                N: {row['N']:.3f}<br>
-                <br>
-                <b>WGS84 (Lat, Lon):</b><br>
-                Lat: {row['Lat']:.7f}<br>
-                Lon: {row['Lon']:.7f}
-            </div>
-            """
-            
+            popup_html = f"<div style='font-size:10pt;'><b>STN: {row['STN']}</b><br>E: {row['E']:.3f}<br>N: {row['N']:.3f}</div>"
             folium.CircleMarker(
                 location=[row["Lat"], row["Lon"]],
                 radius=marker_size, color="yellow", weight=1, fill=True, fill_color="red", fill_opacity=1,
-                popup=folium.Popup(popup_html, max_width=250),
-                tooltip=f"Klik untuk koordinat STN {row['STN']}"
+                popup=folium.Popup(popup_html, max_width=200),
+                tooltip=f"STN {row['STN']}"
             ).add_to(station_layer)
 
             folium.map.Marker(
@@ -162,7 +142,7 @@ if uploaded_file is not None:
                 html=f"""<div style="font-size: {stn_font_size}pt; color: {stn_color}; font-weight: bold; text-shadow: 2px 2px 2px black; pointer-events: none; white-space: nowrap;">{row['STN']}</div>""")
             ).add_to(station_layer)
 
-        # ====== DIMENSIONS (BEARING & DISTANCE) ======
+        # DIMENSIONS
         for i in range(len(df_poly)-1):
             mid_lat, mid_lon = (df_poly["Lat"][i] + df_poly["Lat"][i+1]) / 2, (df_poly["Lon"][i] + df_poly["Lon"][i+1]) / 2
             label = f"{deg_to_dms(bearings[i])}<br>{distances[i]:.2f}m"
@@ -171,7 +151,6 @@ if uploaded_file is not None:
                 icon=folium.DivIcon(html=f"""<div style="font-size: {dms_font_size}pt; color: {dms_color}; font-weight: bold; text-shadow: 1px 1px 2px black; text-align: center; pointer-events: none; width: 150px; margin-left: -75px;">{label}</div>""")
             ).add_to(dimension_layer)
 
-        # Fit & Show
         m.fit_bounds(polygon_coords)
         folium.LayerControl(collapsed=False).add_to(m)
         st_folium(m, width=1100, height=700)
