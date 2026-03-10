@@ -23,7 +23,10 @@ if uploaded_file:
         st.subheader("Data Preview")
         st.dataframe(df)
 
-        # Convert EPSG:4390 → WGS84
+        # ===============================
+        # CONVERT COORDINATE
+        # ===============================
+
         transformer = Transformer.from_crs("epsg:4390","epsg:4326", always_xy=True)
         df['Lon'], df['Lat'] = zip(*[transformer.transform(e,n) for e,n in zip(df['E'], df['N'])])
 
@@ -82,7 +85,7 @@ if uploaded_file:
             tiles=None
         )
 
-        # Google Satellite Layer
+        # Google Satellite
         folium.TileLayer(
             tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
             attr='Google Satellite',
@@ -90,7 +93,7 @@ if uploaded_file:
             max_zoom=22
         ).add_to(m)
 
-        # OpenStreetMap Layer (optional)
+        # Optional map
         folium.TileLayer(
             'OpenStreetMap',
             name='OpenStreetMap'
@@ -133,7 +136,6 @@ if uploaded_file:
             lat2 = df_poly['Lat'][i+1]
             lon2 = df_poly['Lon'][i+1]
 
-            # midpoint of line
             mid_lat = (lat1 + lat2) / 2
             mid_lon = (lon1 + lon2) / 2
 
@@ -155,10 +157,36 @@ if uploaded_file:
                 )
             ).add_to(m)
 
+        # ===============================
+        # AREA LABEL INSIDE TRAVERSE
+        # ===============================
+
+        centroid = polygon.centroid
+
+        cen_lon, cen_lat = transformer.transform(centroid.x, centroid.y)
+
+        folium.Marker(
+            location=[cen_lat, cen_lon],
+            icon=folium.DivIcon(
+                html=f"""
+                <div style="
+                    font-size:14pt;
+                    font-weight:bold;
+                    color:white;
+                    background:rgba(0,0,0,0.6);
+                    padding:6px;
+                    border-radius:5px;
+                    text-align:center;">
+                    AREA<br>{area:,.2f} m²
+                </div>
+                """
+            )
+        ).add_to(m)
+
         # Fit map
         m.fit_bounds(polygon_coords)
 
-        # Layer control (ON/OFF)
+        # ON/OFF layer control
         folium.LayerControl().add_to(m)
 
         # Display map
@@ -180,4 +208,8 @@ if uploaded_file:
 
     else:
         st.error("CSV must contain columns: STN, E, N")
+
+    else:
+        st.error("CSV must contain columns: STN, E, N")
+
 
