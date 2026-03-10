@@ -10,6 +10,14 @@ import io
 st.set_page_config(page_title="GIS Polygon Dashboard", layout="wide")
 st.title("GIS Polygon Dashboard (Johor Grid → Google Satellite)")
 
+# ====== SIDEBAR CONTROLS (Indication / Settings) ======
+st.sidebar.header("Tetapan Paparan (Indication)")
+stn_font_size = st.sidebar.slider("Saiz Font Station (STN)", 8, 20, 10)
+dms_font_size = st.sidebar.slider("Saiz Font Bearing/Jarak (DMS)", 6, 16, 8)
+marker_size = st.sidebar.slider("Saiz Marker Station", 2, 12, 4)
+stn_color = st.sidebar.color_picker("Warna Font Station", "#FFFFFF")
+dms_color = st.sidebar.color_picker("Warna Font DMS", "#00FF00")
+
 # ====== Function: Decimal Degree → DMS ======
 def deg_to_dms(deg):
     d = int(deg)
@@ -92,11 +100,11 @@ if uploaded_file is not None:
             fill_opacity=0.2
         ).add_to(polygon_layer)
 
-        # ====== Stations (Label STN Tanpa Background Putih) ======
+        # ====== Stations (Guna Slider & Color Picker) ======
         for _, row in df.iterrows():
             folium.CircleMarker(
                 location=[row["Lat"], row["Lon"]],
-                radius=4,
+                radius=marker_size,
                 color="yellow",
                 weight=1,
                 fill=True,
@@ -104,15 +112,15 @@ if uploaded_file is not None:
                 fill_opacity=1
             ).add_to(station_layer)
 
-            # Label STN - Clean version
+            # Label STN - Clean version with Dynamic Font
             folium.map.Marker(
                 [row["Lat"], row["Lon"]],
                 icon=folium.DivIcon(
                     icon_anchor=(15, 0),
                     html=f"""
                     <div style="
-                    font-size: 10pt; 
-                    color: white; 
+                    font-size: {stn_font_size}pt; 
+                    color: {stn_color}; 
                     font-weight: bold;
                     text-shadow: 2px 2px 2px black;
                     pointer-events: none;
@@ -123,7 +131,7 @@ if uploaded_file is not None:
                 )
             ).add_to(station_layer)
 
-        # ====== Bearing & Distance Labels (Tanpa Background Putih) ======
+        # ====== Bearing & Distance Labels (Guna Slider & Color Picker) ======
         for i in range(len(df_poly)-1):
             mid_lat = (df_poly["Lat"][i] + df_poly["Lat"][i+1]) / 2
             mid_lon = (df_poly["Lon"][i] + df_poly["Lon"][i+1]) / 2
@@ -135,14 +143,14 @@ if uploaded_file is not None:
                 icon=folium.DivIcon(
                     html=f"""
                     <div style="
-                    font-size: 8pt;
-                    color: #00FF00;
+                    font-size: {dms_font_size}pt;
+                    color: {dms_color};
                     font-weight: bold;
                     text-shadow: 1px 1px 2px black;
                     text-align: center;
                     pointer-events: none;
-                    width: 100px;
-                    margin-left: -50px;">
+                    width: 150px;
+                    margin-left: -75px;">
                     {label}
                     </div>
                     """
