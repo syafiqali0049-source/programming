@@ -31,8 +31,9 @@ if uploaded_file:
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
 
         # ===============================
-        # DISTANCE & BEARING CALCULATION
+        # DISTANCE & BEARING
         # ===============================
+
         distances = []
         bearings = []
 
@@ -64,9 +65,9 @@ if uploaded_file:
         poly_coords = list(zip(df['E'], df['N']))
         poly_coords.append(poly_coords[0])
 
-        perimeter = sum(distances)
         polygon = Polygon(poly_coords)
         area = polygon.area
+        perimeter = sum(distances)
 
         st.markdown(f"**Polygon Area:** {area:,.2f} m²")
         st.markdown(f"**Polygon Perimeter:** {perimeter:,.2f} m")
@@ -78,17 +79,24 @@ if uploaded_file:
         m = folium.Map(
             location=[df['Lat'].mean(), df['Lon'].mean()],
             zoom_start=20,
-            tiles=None,
-            max_zoom=22
+            tiles=None
         )
 
+        # Google Satellite Layer
         folium.TileLayer(
             tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
             attr='Google Satellite',
+            name='Google Satellite',
             max_zoom=22
         ).add_to(m)
 
-        # Polygon
+        # OpenStreetMap Layer (optional)
+        folium.TileLayer(
+            'OpenStreetMap',
+            name='OpenStreetMap'
+        ).add_to(m)
+
+        # Polygon coordinates
         polygon_coords = list(zip(df['Lat'], df['Lon']))
         polygon_coords.append(polygon_coords[0])
 
@@ -100,7 +108,7 @@ if uploaded_file:
         ).add_to(m)
 
         # ===============================
-        # POINTS (replace markers)
+        # POINTS
         # ===============================
 
         for i,row in df.iterrows():
@@ -113,8 +121,45 @@ if uploaded_file:
                 fill_color="red"
             ).add_to(m)
 
-        # Fit map to polygon
+        # ===============================
+        # BEARING & DISTANCE LABELS
+        # ===============================
+
+        for i in range(len(df_poly)-1):
+
+            lat1 = df_poly['Lat'][i]
+            lon1 = df_poly['Lon'][i]
+
+            lat2 = df_poly['Lat'][i+1]
+            lon2 = df_poly['Lon'][i+1]
+
+            # midpoint of line
+            mid_lat = (lat1 + lat2) / 2
+            mid_lon = (lon1 + lon2) / 2
+
+            label = f"{bearings[i]:.1f}° / {distances[i]:.2f} m"
+
+            folium.Marker(
+                location=[mid_lat, mid_lon],
+                icon=folium.DivIcon(
+                    html=f"""
+                    <div style="
+                        font-size:10pt;
+                        color:black;
+                        background:white;
+                        padding:2px;
+                        border-radius:3px;">
+                        {label}
+                    </div>
+                    """
+                )
+            ).add_to(m)
+
+        # Fit map
         m.fit_bounds(polygon_coords)
+
+        # Layer control (ON/OFF)
+        folium.LayerControl().add_to(m)
 
         # Display map
         st_folium(m, width=1000, height=750)
@@ -135,3 +180,4 @@ if uploaded_file:
 
     else:
         st.error("CSV must contain columns: STN, E, N")
+
