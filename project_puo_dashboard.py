@@ -87,7 +87,7 @@ if uploaded_file is not None:
         area = polygon_geom.area
         perimeter = sum(distances)
 
-        # Info Ringkas
+        # Info Ringkas di Streamlit UI
         c1, c2 = st.columns(2)
         c1.metric("Polygon Area", f"{area:,.2f} m²")
         c2.metric("Polygon Perimeter", f"{perimeter:,.2f} m")
@@ -109,9 +109,32 @@ if uploaded_file is not None:
             popup=folium.Popup(f"<b>INFO LOT</b><br>Keluasan: {area:,.2f} m²<br>Perimeter: {perimeter:,.2f} m", max_width=200)
         ).add_to(polygon_layer)
 
+        # ====== BARU: AREA LABEL DI TENGAH POLIGON ======
+        # Mencari titik tengah (Centroid) untuk letak teks AREA
+        centroid = polygon_geom.centroid
+        cen_lon, cen_lat = transformer.transform(centroid.x, centroid.y)
+        
+        folium.Marker(
+            location=[cen_lat, cen_lon],
+            icon=folium.DivIcon(
+                html=f"""
+                <div style="
+                font-size: 14pt;
+                font-weight: bold;
+                color: #FFD700;
+                text-shadow: 2px 2px 4px black;
+                text-align: center;
+                pointer-events: none;
+                width: 200px;
+                margin-left: -100px;">
+                AREA<br>{area:,.2f} m²
+                </div>
+                """
+            )
+        ).add_to(dimension_layer)
+
         # ====== STATIONS DENGAN INFO COORDINATE ======
         for _, row in df.iterrows():
-            # Popup info koordinat
             popup_html = f"""
             <div style='font-family: Arial; font-size: 10pt;'>
                 <b>Station: {row['STN']}</b><br>
@@ -133,14 +156,13 @@ if uploaded_file is not None:
                 tooltip=f"Klik untuk koordinat STN {row['STN']}"
             ).add_to(station_layer)
 
-            # Text Label STN
             folium.map.Marker(
                 [row["Lat"], row["Lon"]],
                 icon=folium.DivIcon(icon_anchor=(15, 0),
                 html=f"""<div style="font-size: {stn_font_size}pt; color: {stn_color}; font-weight: bold; text-shadow: 2px 2px 2px black; pointer-events: none; white-space: nowrap;">{row['STN']}</div>""")
             ).add_to(station_layer)
 
-        # ====== DIMENSIONS ======
+        # ====== DIMENSIONS (BEARING & DISTANCE) ======
         for i in range(len(df_poly)-1):
             mid_lat, mid_lon = (df_poly["Lat"][i] + df_poly["Lat"][i+1]) / 2, (df_poly["Lon"][i] + df_poly["Lon"][i+1]) / 2
             label = f"{deg_to_dms(bearings[i])}<br>{distances[i]:.2f}m"
