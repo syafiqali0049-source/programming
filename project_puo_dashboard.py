@@ -3,9 +3,10 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 from pyproj import Transformer
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, mapping # Tambah mapping untuk GeoJSON
 import math
 import io
+import json # Tambah untuk handle fail GeoJSON
 
 # ====== CONFIG ======
 st.set_page_config(page_title="GIS Polygon Dashboard", layout="wide")
@@ -45,14 +46,14 @@ if not st.session_state.logged_in:
 head_col1, head_col2 = st.columns([1, 5])
 with head_col1:
     try:
-        st.image("logo poli.jpeg", width=150) # Logo di belah kiri tajuk
+        st.image("logo poli.jpeg", width=150)
     except:
         pass
 with head_col2:
-    st.markdown("<br>", unsafe_allow_html=True) # Adjust alignment
+    st.markdown("<br>", unsafe_allow_html=True)
     st.title("GIS Polygon Dashboard (Johor Grid → Google Satellite)")
 
-# --- SIDEBAR (Tetap kekal logo di sidebar juga) ---
+# --- SIDEBAR ---
 try:
     st.sidebar.image("logo poli.jpeg", use_container_width=True)
 except:
@@ -97,6 +98,10 @@ if uploaded_file is not None:
         area = polygon_geom.area
         perimeter = sum(distances)
 
+        # Create WGS84 Polygon for GeoJSON
+        wgs_poly_coords = list(zip(df["Lon"], df["Lat"]))
+        wgs_polygon_geom = Polygon(wgs_poly_coords)
+
         c1, c2 = st.columns(2)
         c1.metric("Polygon Area", f"{area:,.2f} m²")
         c2.metric("Polygon Perimeter", f"{perimeter:,.2f} m")
@@ -109,11 +114,11 @@ if uploaded_file is not None:
         station_layer = folium.FeatureGroup(name="Stations").add_to(m)
         dimension_layer = folium.FeatureGroup(name="Traverse Dimensions").add_to(m)
 
-        polygon_coords = list(zip(df["Lat"], df["Lon"]))
+        polygon_coords_map = list(zip(df["Lat"], df["Lon"]))
         folium.Polygon(
-            locations=polygon_coords,
+            locations=polygon_coords_map,
             color="#3388ff", weight=3, fill=True, fill_opacity=0.2,
-            popup=folium.Popup(f"<b>INFO LOT</b><br>Keluasan: {area:,.2f} m²<br>Perimeter: {perimeter:,.2f} m", max_width=200)
+            popup=folium.Popup(f"<b>INFO LOT</b><br>Keluasan: {area:,.2f} m²", max_width=200)
         ).add_to(polygon_layer)
 
         # AREA LABEL (GOLD)
@@ -151,10 +156,56 @@ if uploaded_file is not None:
                 icon=folium.DivIcon(html=f"""<div style="font-size: {dms_font_size}pt; color: {dms_color}; font-weight: bold; text-shadow: 1px 1px 2px black; text-align: center; pointer-events: none; width: 150px; margin-left: -75px;">{label}</div>""")
             ).add_to(dimension_layer)
 
-        m.fit_bounds(polygon_coords)
+        m.fit_bounds(polygon_coords_map)
         folium.LayerControl(collapsed=False).add_to(m)
         st_folium(m, width=1100, height=700)
 
+        # ====== BAHAGIAN MUAT TURUN (DOWNLOAD SECTION) ======
+        st.markdown("### 📥 Muat Turun Data")
+        dl_col1, dl_col2 = st.columns(2)
+
+        # 1. Download CSV
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
-        st.download_button("Download Converted CSV", csv_buffer.getvalue(), "converted.csv", "text/csv")
+        dl_col1.download_button(
+            label="📊 Download Converted CSV",
+            data=csv_buffer.getvalue(),
+            file_name="converted_coordinates.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+        # 2. Download GeoJSON
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": mapping(wgs_polygon_geom),
+                    "properties": {
+                        "name": "Traverse Lot",
+                        "area_m2": round(area, 2),
+                        "perimeter_m": round(perimeter, 2)
+                    }
+                }
+            ]
+        }
+        # Tambah stesen sebagai point dalam GeoJSON
+        for _, row in df.iterrows():
+            geojson_data["features"].append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [row["Lon"], row["Lat"]]},
+                "properties": {"stn": row["STN"], "easting": row["E"], "northing": row["N"]}
+            })
+
+        geojson_string = json.dumps(geojson_data)
+        dl_col2.download_button(
+            label="🌍 Download GeoJSON File",
+            data=geojson_string,
+            file_name="traverse_lot.geojson",
+            mime="application/json",
+            use_container_width=True
+        )
+
+    else:
+        st.error("CSV must contain columns: STN, E, N")
