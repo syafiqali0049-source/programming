@@ -24,11 +24,9 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None:
-
     df = pd.read_csv(uploaded_file)
 
     if all(col in df.columns for col in ['STN','E','N']):
-
         st.subheader("Data Preview")
         st.dataframe(df)
 
@@ -45,7 +43,6 @@ if uploaded_file is not None:
         # ====== Calculate Distance & Bearing ======
         distances = []
         bearings = []
-
         for i in range(len(df_poly)-1):
             dx = df_poly["E"][i+1] - df_poly["E"][i]
             dy = df_poly["N"][i+1] - df_poly["N"][i]
@@ -54,26 +51,15 @@ if uploaded_file is not None:
             distances.append(distance)
             bearings.append(bearing)
 
-        # ====== Distance & Bearing Table (DMS) ======
-        dist_table = pd.DataFrame({
-            "From": df_poly["STN"][:-1],
-            "To": df_poly["STN"][1:].values,
-            "Distance (m)": distances,
-            "Bearing (DMS)": [deg_to_dms(b) for b in bearings]
-        })
-
-        st.subheader("Distance & Bearing")
-        st.dataframe(dist_table)
-
         # ====== Area & Perimeter ======
         poly_coords = list(zip(df["E"], df["N"]))
-        poly_coords.append(poly_coords[0])
         polygon = Polygon(poly_coords)
         area = polygon.area
         perimeter = sum(distances)
 
-        st.markdown(f"**Polygon Area:** {area:,.2f} m²")
-        st.markdown(f"**Polygon Perimeter:** {perimeter:,.2f} m")
+        col1, col2 = st.columns(2)
+        col1.metric("Polygon Area", f"{area:,.2f} m²")
+        col2.metric("Polygon Perimeter", f"{perimeter:,.2f} m")
 
         # ====== Create Folium Map ======
         m = folium.Map(
@@ -83,12 +69,11 @@ if uploaded_file is not None:
         )
 
         # ====== Base Layers ======
-        folium.TileLayer("OpenStreetMap", name="Street Map", control=True).add_to(m)
+        folium.TileLayer("OpenStreetMap", name="Street Map").add_to(m)
         folium.TileLayer(
             tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
             attr="Google Satellite",
             name="Google Satellite",
-            control=True,
             max_zoom=22
         ).add_to(m)
 
@@ -99,70 +84,72 @@ if uploaded_file is not None:
 
         # ====== Polygon ======
         polygon_coords = list(zip(df["Lat"], df["Lon"]))
-        polygon_coords.append(polygon_coords[0])
         folium.Polygon(
             locations=polygon_coords,
-            color="blue",
+            color="#3388ff",
+            weight=3,
             fill=True,
-            fill_opacity=0.3
+            fill_opacity=0.2
         ).add_to(polygon_layer)
 
-        # ====== Stations (Cantik, bulat merah + outline hitam) ======
+        # ====== Stations (Label STN Tanpa Background Putih) ======
         for _, row in df.iterrows():
             folium.CircleMarker(
                 location=[row["Lat"], row["Lon"]],
-                radius=6,
-                color="black",
+                radius=4,
+                color="yellow",
                 weight=1,
                 fill=True,
                 fill_color="red",
-                fill_opacity=0.9
+                fill_opacity=1
             ).add_to(station_layer)
 
-            # Label STN
+            # Label STN - Clean version
             folium.map.Marker(
                 [row["Lat"], row["Lon"]],
                 icon=folium.DivIcon(
+                    icon_anchor=(15, 0),
                     html=f"""
                     <div style="
-                    font-size:10pt;
-                    background:white;
-                    padding:2px;
-                    border-radius:3px;
-                    text-align:center;">
+                    font-size: 10pt; 
+                    color: white; 
+                    font-weight: bold;
+                    text-shadow: 2px 2px 2px black;
+                    pointer-events: none;
+                    white-space: nowrap;">
                     {row['STN']}
                     </div>
                     """
                 )
             ).add_to(station_layer)
 
-        # ====== Bearing & Distance Labels ======
+        # ====== Bearing & Distance Labels (Tanpa Background Putih) ======
         for i in range(len(df_poly)-1):
-            lat1 = df_poly["Lat"][i]
-            lon1 = df_poly["Lon"][i]
-            lat2 = df_poly["Lat"][i+1]
-            lon2 = df_poly["Lon"][i+1]
-            mid_lat = (lat1 + lat2) / 2
-            mid_lon = (lon1 + lon2) / 2
+            mid_lat = (df_poly["Lat"][i] + df_poly["Lat"][i+1]) / 2
+            mid_lon = (df_poly["Lon"][i] + df_poly["Lon"][i+1]) / 2
             bearing_dms = deg_to_dms(bearings[i])
-            label = f"{bearing_dms} / {distances[i]:.2f} m"
+            label = f"{bearing_dms}<br>{distances[i]:.2f}m"
+            
             folium.Marker(
                 location=[mid_lat, mid_lon],
                 icon=folium.DivIcon(
                     html=f"""
                     <div style="
-                    font-size:10pt;
-                    background:white;
-                    padding:2px;
-                    border-radius:3px;
-                    text-align:center;">
+                    font-size: 8pt;
+                    color: #00FF00;
+                    font-weight: bold;
+                    text-shadow: 1px 1px 2px black;
+                    text-align: center;
+                    pointer-events: none;
+                    width: 100px;
+                    margin-left: -50px;">
                     {label}
                     </div>
                     """
                 )
             ).add_to(dimension_layer)
 
-        # ====== Area Label ======
+        # ====== Area Label (Pusat) ======
         centroid = polygon.centroid
         cen_lon, cen_lat = transformer.transform(centroid.x, centroid.y)
         folium.Marker(
@@ -170,37 +157,29 @@ if uploaded_file is not None:
             icon=folium.DivIcon(
                 html=f"""
                 <div style="
-                font-size:14pt;
-                font-weight:bold;
-                color:white;
-                background:rgba(0,0,0,0.6);
-                padding:6px;
-                border-radius:5px;
-                text-align:center;">
+                font-size: 14pt;
+                font-weight: bold;
+                color: #FFD700;
+                text-shadow: 2px 2px 4px black;
+                text-align: center;
+                pointer-events: none;
+                width: 200px;
+                margin-left: -100px;">
                 AREA<br>{area:,.2f} m²
                 </div>
                 """
             )
         ).add_to(dimension_layer)
 
-        # ====== Fit Map ======
+        # ====== Fit Map & Show ======
         m.fit_bounds(polygon_coords)
-
-        # ====== Layer Control ======
         folium.LayerControl(collapsed=False).add_to(m)
+        st_folium(m, width=1100, height=700)
 
-        # ====== Show Map ======
-        st_folium(m, width=1000, height=750)
-
-        # ====== Download CSV ======
+        # ====== Download ======
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
-        st.download_button(
-            label="Download Converted CSV",
-            data=csv_buffer.getvalue(),
-            file_name="converted_polygon.csv",
-            mime="text/csv"
-        )
+        st.download_button("Download Converted CSV", csv_buffer.getvalue(), "converted.csv", "text/csv")
 
     else:
         st.error("CSV must contain columns: STN, E, N")
