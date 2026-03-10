@@ -107,16 +107,19 @@ if uploaded_file is not None:
             fill_opacity=0.3
         ).add_to(polygon_layer)
 
-        # ====== Stations with Labels ======
+        # ====== Stations (Cantik, bulat merah + outline hitam) ======
         for _, row in df.iterrows():
             folium.CircleMarker(
                 location=[row["Lat"], row["Lon"]],
-                radius=4,
-                color="red",
+                radius=6,
+                color="black",
+                weight=1,
                 fill=True,
-                fill_color="red"
+                fill_color="red",
+                fill_opacity=0.9
             ).add_to(station_layer)
 
+            # Label STN
             folium.map.Marker(
                 [row["Lat"], row["Lon"]],
                 icon=folium.DivIcon(
