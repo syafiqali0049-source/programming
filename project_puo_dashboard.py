@@ -107,7 +107,7 @@ if uploaded_file is not None:
             fill_opacity=0.3
         ).add_to(polygon_layer)
 
-        # ====== Stations ======
+        # ====== Stations with Labels ======
         for _, row in df.iterrows():
             folium.CircleMarker(
                 location=[row["Lat"], row["Lon"]],
@@ -115,6 +115,22 @@ if uploaded_file is not None:
                 color="red",
                 fill=True,
                 fill_color="red"
+            ).add_to(station_layer)
+
+            folium.map.Marker(
+                [row["Lat"], row["Lon"]],
+                icon=folium.DivIcon(
+                    html=f"""
+                    <div style="
+                    font-size:10pt;
+                    background:white;
+                    padding:2px;
+                    border-radius:3px;
+                    text-align:center;">
+                    {row['STN']}
+                    </div>
+                    """
+                )
             ).add_to(station_layer)
 
         # ====== Bearing & Distance Labels ======
@@ -135,7 +151,8 @@ if uploaded_file is not None:
                     font-size:10pt;
                     background:white;
                     padding:2px;
-                    border-radius:3px;">
+                    border-radius:3px;
+                    text-align:center;">
                     {label}
                     </div>
                     """
