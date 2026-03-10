@@ -7,14 +7,51 @@ from shapely.geometry import Polygon
 import math
 import io
 
+# ====== CONFIG ======
 st.set_page_config(page_title="GIS Polygon Dashboard", layout="wide")
 
+# ====== 1. SISTEM LOG MASUK (LOGIN) ======
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+def logout():
+    st.session_state.logged_in = False
+    st.rerun()
+
+if not st.session_state.logged_in:
+    # Paparan Login Tengah-tengah
+    empty_col1, login_col, empty_col2 = st.columns([1, 2, 1])
+    
+    with login_col:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        try:
+            st.image("logo poli.jpeg", use_container_width=True)
+        except:
+            pass
+            
+        st.title("🔐 Log Masuk Sistem GIS")
+        with st.form("login_form"):
+            user_input = st.text_input("Username", value="admin")
+            pass_input = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Masuk")
+            
+            if submit:
+                # Password yang awak minta: 12345
+                if user_input == "admin" and pass_input == "12345":
+                    st.session_state.logged_in = True
+                    st.success("Log masuk berjaya!")
+                    st.rerun()
+                else:
+                    st.error("Username atau Password salah!")
+    st.stop() # Berhenti di sini kalau belum login
+
+# ====== 2. DASHBOARD UTAMA (Selepas Login) ======
+
 # ====== SIDEBAR (Logo & Indication) ======
-# Saya tambah logo di sini. Pastikan file "logo poli.jpeg" ada dalam folder yang sama dengan script ini.
 try:
     st.sidebar.image("logo poli.jpeg", use_container_width=True)
 except:
-    st.sidebar.warning("Logo 'logo poli.jpeg' tidak dijumpai. Pastikan nama file betul.")
+    pass
 
 st.sidebar.header("Tetapan Paparan (Indication)")
 stn_font_size = st.sidebar.slider("Saiz Font Station (STN)", 8, 20, 10)
@@ -22,6 +59,10 @@ dms_font_size = st.sidebar.slider("Saiz Font Bearing/Jarak (DMS)", 6, 16, 8)
 marker_size = st.sidebar.slider("Saiz Marker Station", 2, 12, 4)
 stn_color = st.sidebar.color_picker("Warna Font Station", "#FFFFFF")
 dms_color = st.sidebar.color_picker("Warna Font DMS", "#00FF00")
+
+st.sidebar.markdown("---")
+if st.sidebar.button("Log Keluar"):
+    logout()
 
 st.title("GIS Polygon Dashboard (Johor Grid → Google Satellite)")
 
@@ -119,26 +160,16 @@ if uploaded_file is not None:
                 fill_opacity=1
             ).add_to(station_layer)
 
-            # Label STN - Clean version with Dynamic Font & Shadow
+            # Label STN - Transparent Style
             folium.map.Marker(
                 [row["Lat"], row["Lon"]],
                 icon=folium.DivIcon(
                     icon_anchor=(15, 0),
-                    html=f"""
-                    <div style="
-                    font-size: {stn_font_size}pt; 
-                    color: {stn_color}; 
-                    font-weight: bold;
-                    text-shadow: 2px 2px 2px black;
-                    pointer-events: none;
-                    white-space: nowrap;">
-                    {row['STN']}
-                    </div>
-                    """
+                    html=f"""<div style="font-size: {stn_font_size}pt; color: {stn_color}; font-weight: bold; text-shadow: 2px 2px 2px black; pointer-events: none; white-space: nowrap;">{row['STN']}</div>"""
                 )
             ).add_to(station_layer)
 
-        # ====== Bearing & Distance Labels (Guna Sidebar Settings) ======
+        # ====== Bearing & Distance Labels ======
         for i in range(len(df_poly)-1):
             mid_lat = (df_poly["Lat"][i] + df_poly["Lat"][i+1]) / 2
             mid_lon = (df_poly["Lon"][i] + df_poly["Lon"][i+1]) / 2
@@ -148,19 +179,7 @@ if uploaded_file is not None:
             folium.Marker(
                 location=[mid_lat, mid_lon],
                 icon=folium.DivIcon(
-                    html=f"""
-                    <div style="
-                    font-size: {dms_font_size}pt;
-                    color: {dms_color};
-                    font-weight: bold;
-                    text-shadow: 1px 1px 2px black;
-                    text-align: center;
-                    pointer-events: none;
-                    width: 150px;
-                    margin-left: -75px;">
-                    {label}
-                    </div>
-                    """
+                    html=f"""<div style="font-size: {dms_font_size}pt; color: {dms_color}; font-weight: bold; text-shadow: 1px 1px 2px black; text-align: center; pointer-events: none; width: 150px; margin-left: -75px;">{label}</div>"""
                 )
             ).add_to(dimension_layer)
 
@@ -170,19 +189,7 @@ if uploaded_file is not None:
         folium.Marker(
             location=[cen_lat, cen_lon],
             icon=folium.DivIcon(
-                html=f"""
-                <div style="
-                font-size: 14pt;
-                font-weight: bold;
-                color: #FFD700;
-                text-shadow: 2px 2px 4px black;
-                text-align: center;
-                pointer-events: none;
-                width: 200px;
-                margin-left: -100px;">
-                AREA<br>{area:,.2f} m²
-                </div>
-                """
+                html=f"""<div style="font-size: 14pt; font-weight: bold; color: #FFD700; text-shadow: 2px 2px 4px black; text-align: center; pointer-events: none; width: 200px; margin-left: -100px;">AREA<br>{area:,.2f} m²</div>"""
             )
         ).add_to(dimension_layer)
 
@@ -198,4 +205,3 @@ if uploaded_file is not None:
 
     else:
         st.error("CSV must contain columns: STN, E, N")
-
