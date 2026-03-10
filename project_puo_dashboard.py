@@ -27,56 +27,105 @@ if uploaded_file:
         transformer = Transformer.from_crs("epsg:4390","epsg:4326", always_xy=True)
         df['Lon'], df['Lat'] = zip(*[transformer.transform(e,n) for e,n in zip(df['E'], df['N'])])
 
-        # Polygon coordinates for shapely
+        # Close polygon
+        df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
+
+        # ===============================
+        # DISTANCE & BEARING CALCULATION
+        # ===============================
+        distances = []
+        bearings = []
+
+        for i in range(len(df_poly)-1):
+
+            dx = df_poly['E'][i+1] - df_poly['E'][i]
+            dy = df_poly['N'][i+1] - df_poly['N'][i]
+
+            distance = math.sqrt(dx**2 + dy**2)
+            bearing = (math.degrees(math.atan2(dx, dy)) + 360) % 360
+
+            distances.append(distance)
+            bearings.append(bearing)
+
+        dist_table = pd.DataFrame({
+            "From": df_poly['STN'][:-1],
+            "To": df_poly['STN'][1:].values,
+            "Distance (m)": distances,
+            "Bearing (deg)": bearings
+        })
+
+        st.subheader("Distance & Bearing")
+        st.dataframe(dist_table)
+
+        # ===============================
+        # AREA & PERIMETER
+        # ===============================
+
         poly_coords = list(zip(df['E'], df['N']))
-        poly_coords.append(poly_coords[0])  # close polygon
+        poly_coords.append(poly_coords[0])
 
-        # Calculate Perimeter
-        perimeter = 0
-        for i in range(len(poly_coords)-1):
-            dx = poly_coords[i+1][0] - poly_coords[i][0]
-            dy = poly_coords[i+1][1] - poly_coords[i][1]
-            perimeter += math.sqrt(dx*dx + dy*dy)
-
-        # Calculate Area using Shoelace formula
+        perimeter = sum(distances)
         polygon = Polygon(poly_coords)
-        area = polygon.area  # in square meters
+        area = polygon.area
 
         st.markdown(f"**Polygon Area:** {area:,.2f} m²")
         st.markdown(f"**Polygon Perimeter:** {perimeter:,.2f} m")
 
-        # Create folium map
-        m = folium.Map(tiles=None)
+        # ===============================
+        # CREATE MAP
+        # ===============================
 
-        # Add Google Satellite tiles
+        m = folium.Map(
+            location=[df['Lat'].mean(), df['Lon'].mean()],
+            zoom_start=20,
+            tiles=None,
+            max_zoom=22
+        )
+
         folium.TileLayer(
             tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-            attr='Google Satellite'
+            attr='Google Satellite',
+            max_zoom=22
         ).add_to(m)
 
-        # Create polygon for folium (Lat/Lon)
+        # Polygon
         polygon_coords = list(zip(df['Lat'], df['Lon']))
         polygon_coords.append(polygon_coords[0])
+
         folium.Polygon(
             locations=polygon_coords,
             color='blue',
             fill=True,
-            fill_opacity=0.4
+            fill_opacity=0.3
         ).add_to(m)
 
-        # Add markers
-        for i,row in df.iterrows():
-            folium.Marker([row['Lat'], row['Lon']], popup=row['STN']).add_to(m)
+        # ===============================
+        # POINTS (replace markers)
+        # ===============================
 
-        # Fit map to polygon bounds
+        for i,row in df.iterrows():
+
+            folium.CircleMarker(
+                location=[row['Lat'], row['Lon']],
+                radius=3,
+                color="red",
+                fill=True,
+                fill_color="red"
+            ).add_to(m)
+
+        # Fit map to polygon
         m.fit_bounds(polygon_coords)
 
         # Display map
-        st_folium(m, width=900, height=700)
+        st_folium(m, width=1000, height=750)
 
-        # Optional: Download area/perimeter + coordinates
+        # ===============================
+        # DOWNLOAD CSV
+        # ===============================
+
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
+
         st.download_button(
             label="Download Converted CSV (Lat/Lon)",
             data=csv_buffer.getvalue(),
