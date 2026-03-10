@@ -23,10 +23,6 @@ if uploaded_file is not None:
         st.subheader("Data Preview")
         st.dataframe(df)
 
-        # ======================
-        # CONVERT COORDINATE
-        # ======================
-
         transformer = Transformer.from_crs("epsg:4390","epsg:4326", always_xy=True)
 
         df["Lon"], df["Lat"] = zip(*[
@@ -34,12 +30,7 @@ if uploaded_file is not None:
             for e, n in zip(df["E"], df["N"])
         ])
 
-        # close polygon
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
-
-        # ======================
-        # DISTANCE & BEARING
-        # ======================
 
         distances = []
         bearings = []
@@ -50,7 +41,6 @@ if uploaded_file is not None:
             dy = df_poly["N"][i+1] - df_poly["N"][i]
 
             distance = math.sqrt(dx**2 + dy**2)
-
             bearing = (math.degrees(math.atan2(dx, dy)) + 360) % 360
 
             distances.append(distance)
@@ -65,10 +55,6 @@ if uploaded_file is not None:
 
         st.subheader("Distance & Bearing")
         st.dataframe(dist_table)
-
-        # ======================
-        # AREA & PERIMETER
-        # ======================
 
         poly_coords = list(zip(df["E"], df["N"]))
         poly_coords.append(poly_coords[0])
@@ -88,22 +74,34 @@ if uploaded_file is not None:
         m = folium.Map(
             location=[df["Lat"].mean(), df["Lon"].mean()],
             zoom_start=20,
-            tiles=None
+            control_scale=True
         )
 
-        # Google Satellite
+        # ======================
+        # BASE MAP
+        # ======================
+
+        folium.TileLayer(
+            "OpenStreetMap",
+            name="Street Map",
+            control=True
+        ).add_to(m)
+
         folium.TileLayer(
             tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
             attr="Google Satellite",
             name="Google Satellite",
+            control=True,
             max_zoom=22
         ).add_to(m)
 
-        # OpenStreetMap
-        folium.TileLayer(
-            "OpenStreetMap",
-            name="OpenStreetMap"
-        ).add_to(m)
+        # ======================
+        # FEATURE GROUP
+        # ======================
+
+        polygon_layer = folium.FeatureGroup(name="Traverse Polygon").add_to(m)
+        station_layer = folium.FeatureGroup(name="Stations").add_to(m)
+        dimension_layer = folium.FeatureGroup(name="Traverse Dimensions").add_to(m)
 
         # ======================
         # POLYGON
@@ -117,24 +115,24 @@ if uploaded_file is not None:
             color="blue",
             fill=True,
             fill_opacity=0.3
-        ).add_to(m)
+        ).add_to(polygon_layer)
 
         # ======================
-        # POINTS
+        # STATIONS
         # ======================
 
         for _, row in df.iterrows():
 
             folium.CircleMarker(
                 location=[row["Lat"], row["Lon"]],
-                radius=3,
+                radius=4,
                 color="red",
                 fill=True,
                 fill_color="red"
-            ).add_to(m)
+            ).add_to(station_layer)
 
         # ======================
-        # BEARING & DISTANCE LABEL
+        # BEARING & DISTANCE
         # ======================
 
         for i in range(len(df_poly)-1):
@@ -163,7 +161,7 @@ if uploaded_file is not None:
                     </div>
                     """
                 )
-            ).add_to(m)
+            ).add_to(dimension_layer)
 
         # ======================
         # AREA LABEL
@@ -192,15 +190,20 @@ if uploaded_file is not None:
                 </div>
                 """
             )
-        ).add_to(m)
+        ).add_to(dimension_layer)
 
-        # fit map
+        # ======================
+        # FIT MAP
+        # ======================
+
         m.fit_bounds(polygon_coords)
 
-        # layer control
-        folium.LayerControl().add_to(m)
+        # ======================
+        # MAP CONTROL
+        # ======================
 
-        # show map
+        folium.LayerControl(collapsed=False).add_to(m)
+
         st_folium(m, width=1000, height=750)
 
         # ======================
@@ -219,6 +222,3 @@ if uploaded_file is not None:
 
     else:
         st.error("CSV must contain columns: STN, E, N")
-
-
-
